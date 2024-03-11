@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>A Multiplayer Game</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self'; worker-src 'self'">
+    <meta charset="UTF-8" />
+    <style>
+      canvas {
+        border: 0px solid black;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script id="vertexShader" type="x-shader/x-vertex">
+      precision mediump float;
+      precision mediump int;
+
+      #ifdef USE_LOGDEPTHBUF
+        #define EPSILON 1e-6
+        #ifdef USE_LOGDEPTHBUF_EXT
+          varying float vFragDepth;
+        #endif
+        uniform float logDepthBufFC;
+      #endif
+
+      uniform mat4 modelViewMatrix; // optional
+      uniform mat4 projectionMatrix; // optional
+
+      in vec3 position;
+      in vec4 color;
+      in float light;
+      in float size;
+
+      out vec3 vPosition;
+      out vec4 vColor;
+      out float vLight;
+      out float mvPositionZ;
+      out float fSize;
+
+      void main()	{
+
+        vPosition = position;
+        vColor = color;
+        vLight = light;
+
+        vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+        //gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        gl_Position = projectionMatrix * mvPosition;
+        mvPositionZ = mvPosition.z;
+
+        // While it seems a good idea to increase the size of the particles when they are close to the camera, it's causing performance issues because depth testing is disabled for those particles
+        // So attemtping to draw like 10k particles covering a large portion of the screen will cause a huge performance hit
+        //gl_PointSize = size / -mvPosition.z;
+        gl_PointSize = size;
+        fSize = size;
+
+        #ifdef USE_LOGDEPTHBUF
+          gl_Position.z = log2(max( EPSILON, gl_Position.w + 1.0 )) * logDepthBufFC;
+          #ifdef USE_LOGDEPTHBUF_EXT
+            vFragDepth = 1.0 + gl_Position.w;
+          #else
+            gl_Position.z = (gl_Position.z - 1.0) * gl_Position.w;
+          #endif
+        #endif
+
+      }
+
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+      precision mediump float;
+      precision mediump int;
+
+      #ifdef USE_LOGDEPTHBUF
+        uniform float logDepthBufFC;
+        #ifdef USE_LOGDEPTHBUF_EXT
+          #extension GL_EXT_frag_depth : enable
+          varying float vFragDepth;
+        #endif
+      #endif
+
+      uniform float time;
+      uniform bool fuzzyPointRendering;
+
+      in vec3 vPosition;
+      in vec4 vColor;
+      in float vLight;
+      in float mvPositionZ;
+      in float fSize;
+
+      out vec4 fragColor;
+
+      void main()	{
+
+        vec4 color = vec4( vColor );
+        //color.r += sin( vPosition.x * 10.0 + time ) * 0.5;
+
+        // We'll use a light factor to dim the particules when they are close to the camera
+        float lightFactor;
+        if( fuzzyPointRendering ) {
+          lightFactor = 1.0 - 1.0 / ( 1.0 + mvPositionZ * mvPositionZ * 0.001 );
+          // If the light factor is low enough, discard the fragment
+          if( lightFactor < 0.01 ) discard;
+        } else {
+          lightFactor = 1.0;
+        }
+        color.r = color.r * vLight * lightFactor;
+        color.g = color.g * vLight * lightFactor;
+        color.b = color.b * vLight * lightFactor;
+
+        //if( dot( gl_PointCoord - 0.5, gl_PointCoord - 0.5 ) > 0.25 ) discard; - equivalent to the code below
+        if( fuzzyPointRendering ) {
+
+          //if( mod( floor( gl_PointCoord.x * 49.0 ), 2.0 ) > 1.0 ) discard;
+          //if( mod( floor( gl_PointCoord.y * 49.0 ) * 0.1, 2.0 ) > 1.0 ) discard;
+          //if( mod( gl_FragCoord.x * gl_FragCoord.y, 10.0 ) > 5.0 ) discard;
+          //vec2 v = vec2( floor( ( gl_PointCoord.x * vLight ) * 137.0 ) * 0.1, floor( ( gl_PointCoord.y + vLight ) * 137.0 ) * 0.1 );
+          //vec2 v = vec2( floor( ( gl_PointCoord.x * 10000.0 / fSize ) ) * 0.5, floor( ( gl_PointCoord.y * 10000.0 / fSize ) ) * 0.5 );
+          vec2 v = vec2( floor( ( 0.6 * fSize * gl_PointCoord.x ) ), floor( ( 0.6 * fSize * gl_PointCoord.y ) ) );
+          if( fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453) > 0.5 ) discard;
+
+          float d = distance( gl_PointCoord, vec2( 0.5, 0.5 ) );
+          color.a = ( 1.0 - 4.0 * d );
+          if( d > 0.5 ) discard;
+          else fragColor = color;
+        }
+        else fragColor = color;
+
+        #if defined(USE_LOGDEPTHBUF) && defined(USE_LOGDEPTHBUF_EXT)
+          gl_FragDepthEXT = log2(vFragDepth) * logDepthBufFC * 0.5;
+        #endif
+
+      }
+
+    </script>
+  </head>
+  <body>
+    <!--<div id=messages></div>-->
+  </body>
+
+  <script src="/../dist/bundle.js"></script>
+
+  <!--<script>document.getElementById('messages').innerHTML = navigator.hardwareConcurrency;</script>-->
+
+</html>

@@ -1,0 +1,23 @@
+
+
+Node.js
+ - Express : done
+ - Webpack : done  (bundle javascript code on the server side at each release)
+
+General:
+- Socket.io : done
+- Colyseus multiplayer game framework : won't do for now, don't need multi-rooms support
+
+Client:
+- Use navigator.hardwareConcurrency to get cpu core counts : done
+- three.js : done
+- jquery : pending
+- WebGL Logarithmic Z-Buffer : done
+- Web workers (multi-threading) : pending
+
+Server:
+ - Dump game (world + players) state periodically on disk : pending
+
+Possible issues:
+ - keydown while switching tab prevent keyup. Track lost focus for Window/Tab to send key up events?
+
